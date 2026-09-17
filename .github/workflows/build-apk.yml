@@ -9,7 +9,7 @@ on:
 env:
   APP_NAME: "Netsa Pro"
   PACKAGE_NAME: "com.netsapro.app"
-  # Replace with the actual AdMob App ID for Netsa Pro if differents
+  # Replace with the actual AdMob App ID for Netsa Pro if different
   ADMOB_APP_ID: "ca-app-pub-3940256099942544~3347511713" 
 
 jobs:
@@ -173,15 +173,58 @@ jobs:
 
       - name: Set Custom App and Notification Icons
         run: |
+          python3 -m pip install --upgrade pillow --quiet
+
+          # Notification icons
           mkdir -p android/app/src/main/res/drawable
           cp s2.png android/app/src/main/res/drawable/ic_stat_onesignal_default.png 2>/dev/null || true
           cp s2.png android/app/src/main/res/drawable/ic_onesignal_large_icon_default.png 2>/dev/null || true
 
-          for dir in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-            cp s.png android/app/src/main/res/$dir/ic_launcher.png 2>/dev/null || true
-            cp s.png android/app/src/main/res/$dir/ic_launcher_round.png 2>/dev/null || true
-            cp s.png android/app/src/main/res/$dir/ic_launcher_foreground.png 2>/dev/null || true
-          done
+          # Set adaptive icon background color to clean white
+          mkdir -p android/app/src/main/res/values
+          cat << 'EOF' > android/app/src/main/res/values/ic_launcher_background.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#FFFFFF</color>
+          </resources>
+          EOF
+
+          # Generate safe-padded adaptive foreground icons to prevent edge clipping
+          python3 - << 'EOF'
+          import os
+          from PIL import Image
+
+          if os.path.exists("s.png"):
+              img = Image.open("s.png").convert("RGBA")
+              
+              densities = {
+                  "mipmap-mdpi": (48, 108),
+                  "mipmap-hdpi": (72, 162),
+                  "mipmap-xhdpi": (96, 216),
+                  "mipmap-xxhdpi": (144, 324),
+                  "mipmap-xxxhdpi": (192, 432)
+              }
+              
+              for folder, (icon_sz, fg_sz) in densities.items():
+                  target_dir = f"android/app/src/main/res/{folder}"
+                  os.makedirs(target_dir, exist_ok=True)
+                  
+                  # Legacy icons
+                  legacy_icon = img.resize((icon_sz, icon_sz), Image.Resampling.LANCZOS)
+                  legacy_icon.save(f"{target_dir}/ic_launcher.png")
+                  legacy_icon.save(f"{target_dir}/ic_launcher_round.png")
+                  
+                  # Adaptive foreground: safe zone is 66% of fg_sz
+                  fg_canvas = Image.new("RGBA", (fg_sz, fg_sz), (0, 0, 0, 0))
+                  safe_sz = int(fg_sz * 0.66)
+                  resized_logo = img.resize((safe_sz, safe_sz), Image.Resampling.LANCZOS)
+                  offset = ((fg_sz - safe_sz) // 2, (fg_sz - safe_sz) // 2)
+                  fg_canvas.paste(resized_logo, offset, resized_logo)
+                  fg_canvas.save(f"{target_dir}/ic_launcher_foreground.png")
+              print("App icons generated successfully with adaptive safe-zone padding.")
+          else:
+              print("Warning: s.png not found!")
+          EOF
 
       - name: Fix Android Hardware Back Button
         run: |
@@ -226,10 +269,10 @@ jobs:
           sed -i 's/minSdk .*/minSdk 24/' android/app/build.gradle
           sed -i 's/minSdkVersion .*/minSdkVersion 24/' android/app/build.gradle
 
-      - name: Set Dynamic Version Code
+      - name: Set Version Code and Name
         run: |
           sed -i 's/versionCode [0-9]*/versionCode ${{ github.run_number }}/' android/app/build.gradle
-          sed -i 's/versionName "[^"]*"/versionName "1.0.${{ github.run_number }}"/' android/app/build.gradle
+          sed -i 's/versionName "[^"]*"/versionName "1.0.9"/' android/app/build.gradle
 
       - name: Add Google Services JSON
         run: |
