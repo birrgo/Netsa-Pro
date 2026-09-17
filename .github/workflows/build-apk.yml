@@ -9,7 +9,7 @@ on:
 env:
   APP_NAME: "Netsa Pro"
   PACKAGE_NAME: "com.netsapro.app"
-  # Replace with the actual AdMob App ID for Netsa Pro if different
+  # Replace with the actual AdMob App ID for Netsa Pro if differents
   ADMOB_APP_ID: "ca-app-pub-3940256099942544~3347511713" 
 
 jobs:
